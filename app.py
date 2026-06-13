@@ -145,12 +145,12 @@ if st.session_state.page == "dashboard":
     st.markdown("<h1 style='margin-bottom: 5px;'>📊 Dashboard & Wellness Trends</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color: #4A5568;'>Monitor your emotional metrics, stress patterns, and view personalized AI-generated reports.</p>", unsafe_allow_html=True)
     st.markdown("---")
-    
-    # Check if database is empty
-    entries = database.get_journal_entries()
+
+    # Load all entries and profile
+    all_entries = database.get_journal_entries(limit=500)
     profile_data = database.get_profile()
-    
-    if not entries:
+
+    if not all_entries:
         # Beautiful empty state
         escaped_exam = html.escape(profile_data['target_exam'])
         st.markdown(
@@ -158,8 +158,8 @@ if st.session_state.page == "dashboard":
             <div class="wellness-card wellness-card-accent" style="text-align: center; padding: 40px;">
                 <h2 style="color: #6B46C1; margin-top: 0;">Welcome to Aura, your wellness companion! 🌟</h2>
                 <p style="font-size: 16px; color: #4D5568; max-width: 600px; margin: 0 auto 24px auto;">
-                    Preparing for <b>{escaped_exam}</b> requires tremendous dedication. However, your mental health is 
-                    just as important as your exam score. Aura is designed to analyze your daily journal logs to reveal hidden 
+                    Preparing for <b>{escaped_exam}</b> requires tremendous dedication. However, your mental health is
+                    just as important as your exam score. Aura is designed to analyze your daily journal logs to reveal hidden
                     stress triggers, provide direct coping mechanisms, and support you along the way.
                 </p>
                 <p style="font-weight: 600; color: #2D3748;">To get started, navigate to the 📝 Daily Journal tab and log your first entry.</p>
@@ -168,140 +168,327 @@ if st.session_state.page == "dashboard":
             unsafe_allow_html=True
         )
     else:
-        # Load entries into dataframe for analysis
-        df = pd.DataFrame(entries)
-        
-        # 1. METRICS row
-        avg_stress = df["stress_level"].mean()
-        # Find most frequent mood
-        most_common_mood = df["mood"].value_counts().index[0]
-        
-        # Flatten all triggers to count them
-        all_triggers = []
-        for triggers_list in df["triggers"]:
-            if isinstance(triggers_list, list):
-                all_triggers.extend(triggers_list)
-        
-        top_trigger = "None detected yet"
-        if all_triggers:
-            top_trigger = pd.Series(all_triggers).value_counts().index[0]
-            
-        col1, col2, col3, col4 = st.columns(4)
-        escaped_exam = html.escape(profile_data['target_exam'])
-        escaped_mood = html.escape(most_common_mood)
-        escaped_trigger = html.escape(top_trigger)
-        with col1:
-            st.markdown(
-                f"""
-                <div class="wellness-card wellness-card-accent" style="padding: 16px; text-align: center;">
-                    <div class="metric-label">Target Exam</div>
-                    <div class="metric-value" style="font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{escaped_exam}</div>
-                </div>
-                """, unsafe_allow_html=True
+        # ── TIMEFRAME FILTER ──────────────────────────────────────
+        filter_col, spacer = st.columns([2, 5])
+        with filter_col:
+            timeframe = st.selectbox(
+                "📅 View Period:",
+                ["All Time", "Last 30 Days", "Last 7 Days"],
+                label_visibility="visible"
             )
-        with col2:
-            st.markdown(
-                f"""
-                <div class="wellness-card wellness-card-sage" style="padding: 16px; text-align: center;">
-                    <div class="metric-label">Average Stress</div>
-                    <div class="metric-value" style="color: {'#C53030' if avg_stress >= 7 else '#2F855A' if avg_stress <= 4 else '#DD6B20'}">{avg_stress:.1f} / 10</div>
-                </div>
-                """, unsafe_allow_html=True
-            )
-        with col3:
-            st.markdown(
-                f"""
-                <div class="wellness-card wellness-card-blue" style="padding: 16px; text-align: center;">
-                    <div class="metric-label">Dominant Mood</div>
-                    <div class="metric-value">{escaped_mood}</div>
-                </div>
-                """, unsafe_allow_html=True
-            )
-        with col4:
-            st.markdown(
-                f"""
-                <div class="wellness-card" style="padding: 16px; text-align: center; border-left: 6px solid #4A5568;">
-                    <div class="metric-label">Top Stress Trigger</div>
-                    <div class="metric-value" style="font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{escaped_trigger}">{escaped_trigger}</div>
-                </div>
-                """, unsafe_allow_html=True
-            )
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 2. CHARTS SECTION
-        left_col, right_col = st.columns([2, 1])
-        
-        with left_col:
-            st.markdown("<h3 style='margin-top:0;'>📈 Stress & Mood Over Time</h3>", unsafe_allow_html=True)
-            # Format and sort date for chronological plotting
-            df_plot = df.copy()
-            df_plot["date_parsed"] = pd.to_datetime(df_plot["date"])
-            df_plot = df_plot.sort_values("date_parsed")
-            
-            # Simple, aesthetic line chart using Altair
-            stress_chart = alt.Chart(df_plot).mark_line(
-                point=True, 
-                color="#805AD5", 
-                strokeWidth=3
-            ).encode(
-                x=alt.X("date:T", title="Date", axis=alt.Axis(format="%b %d")),
-                y=alt.Y("stress_level:Q", title="Stress Level", scale=alt.Scale(domain=[1, 10])),
-                tooltip=["date", "mood", "stress_level"]
-            ).properties(
-                height=300
-            ).interactive()
-            
-            st.altair_chart(stress_chart, use_container_width=True)
-            
-        with right_col:
-            st.markdown("<h3 style='margin-top:0;'>🔥 Primary Stress Triggers</h3>", unsafe_allow_html=True)
-            if all_triggers:
-                trigger_counts = pd.Series(all_triggers).value_counts().reset_index()
-                trigger_counts.columns = ["Trigger", "Count"]
-                
-                trigger_chart = alt.Chart(trigger_counts).mark_bar(
-                    cornerRadiusTopRight=4,
-                    cornerRadiusBottomRight=4,
-                    color="#4A5568"
-                ).encode(
-                    x=alt.X("Count:Q", title="Occurrences", axis=alt.Axis(tickMinStep=1)),
-                    y=alt.Y("Trigger:N", sort="-x", title=""),
-                    color=alt.Color("Trigger:N", legend=None, scale=alt.Scale(scheme="purples"))
-                ).properties(
-                    height=300
-                )
-                st.altair_chart(trigger_chart, use_container_width=True)
-            else:
-                st.info("No specific triggers detected yet.")
 
-        # 3. AI WELLNESS INSIGHTS REPORT
-        st.markdown("---")
-        st.markdown("### 📝 AI-Generated Wellness & Emotional Analysis")
-        st.markdown("Get a long-term analysis of your mental logs, detecting subconscious patterns and recommending specific study-life changes.")
-        
-        if not st.session_state.api_key:
-            st.warning("Please provide your Gemini API key in the sidebar to generate your wellness report.")
+        # Filter entries based on timeframe selection
+        df_all = pd.DataFrame(all_entries)
+        df_all["date_parsed"] = pd.to_datetime(df_all["date"])
+        today = pd.Timestamp.now().normalize()
+
+        if timeframe == "Last 7 Days":
+            cutoff = today - pd.Timedelta(days=7)
+            df = df_all[df_all["date_parsed"] >= cutoff].copy()
+        elif timeframe == "Last 30 Days":
+            cutoff = today - pd.Timedelta(days=30)
+            df = df_all[df_all["date_parsed"] >= cutoff].copy()
         else:
-            # Generate or show cache
-            if st.session_state.refresh_report or not st.session_state.report_cache:
-                with st.spinner("Aura is analyzing your journal history and synthesizing insights..."):
-                    try:
-                        # Fetch all logs in ascending order for trend analysis
-                        history = sorted(entries, key=lambda x: x["date"])
-                        report = client.generate_wellness_report(history, profile_data)
-                        st.session_state.report_cache = report
-                        st.session_state.refresh_report = False
-                    except Exception as e:
-                        st.error(f"Error generating report: {e}")
-            
-            if st.session_state.report_cache:
-                with st.container(border=True):
-                    st.markdown(st.session_state.report_cache)
-                
-                if st.button("🔄 Regenerate Report"):
-                    st.session_state.refresh_report = True
-                    st.rerun()
+            df = df_all.copy()
+
+        if df.empty:
+            st.info(f"No journal entries found for {timeframe}. Try selecting a wider time range.")
+        else:
+            # Compute aggregate stats
+            avg_stress = df["stress_level"].mean()
+            max_stress = df["stress_level"].max()
+            total_entries = len(df)
+            most_common_mood = df["mood"].value_counts().index[0]
+
+            all_triggers = []
+            for triggers_list in df["triggers"]:
+                if isinstance(triggers_list, list):
+                    all_triggers.extend(triggers_list)
+            all_emotions = []
+            for emotions_list in df["emotions"]:
+                if isinstance(emotions_list, list):
+                    all_emotions.extend(emotions_list)
+
+            top_trigger = pd.Series(all_triggers).value_counts().index[0] if all_triggers else "None detected yet"
+            top_emotion = pd.Series(all_emotions).value_counts().index[0] if all_emotions else "N/A"
+
+            # ── STRESS ALERT BANNER ───────────────────────────────
+            if avg_stress >= 7.5:
+                st.markdown(
+                    """
+                    <div role="alert" aria-live="assertive" style="background:#FFF0F0; border-left:6px solid #9B1C1C;
+                        border-radius:10px; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:28px;">🚨</span>
+                        <div>
+                            <strong style="color:#9B1C1C; font-size:15px;">High Stress Period Detected</strong>
+                            <p style="margin:4px 0 0 0; color:#7B1C1C; font-size:13px;">
+                                Your average stress is critically high. Consider taking a longer study break today and
+                                talking with a trusted person. Tap 🧘 Mindfulness for immediate relief exercises.
+                            </p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            elif avg_stress >= 5.5:
+                st.markdown(
+                    """
+                    <div role="alert" aria-live="polite" style="background:#FFFBEB; border-left:6px solid #92400E;
+                        border-radius:10px; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:28px;">⚠️</span>
+                        <div>
+                            <strong style="color:#92400E; font-size:15px;">Moderate Stress Detected</strong>
+                            <p style="margin:4px 0 0 0; color:#78350F; font-size:13px;">
+                                You're managing but showing signs of sustained pressure. Make sure you're taking
+                                regular breaks and staying hydrated. Small wins matter — celebrate them!
+                            </p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    """
+                    <div role="status" aria-live="polite" style="background:#F0FDF4; border-left:6px solid #166534;
+                        border-radius:10px; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:28px;">✅</span>
+                        <div>
+                            <strong style="color:#166534; font-size:15px;">Stress is Well Managed</strong>
+                            <p style="margin:4px 0 0 0; color:#14532D; font-size:13px;">
+                                Great work! Your stress levels look balanced for this period.
+                                Keep up the regular journaling and healthy study habits.
+                            </p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            # ── METRICS ROW ───────────────────────────────────────
+            col1, col2, col3, col4, col5 = st.columns(5)
+            escaped_exam = html.escape(profile_data['target_exam'])
+            escaped_mood = html.escape(most_common_mood)
+            escaped_trigger = html.escape(top_trigger)
+            escaped_emotion = html.escape(top_emotion)
+            stress_text_color = "#9B1C1C" if avg_stress >= 7.5 else "#92400E" if avg_stress >= 5.5 else "#166534"
+            stress_bg = "#FFF0F0" if avg_stress >= 7.5 else "#FFFBEB" if avg_stress >= 5.5 else "#F0FDF4"
+
+            with col1:
+                st.markdown(f"""
+                <div class="wellness-card wellness-card-accent" style="padding:14px; text-align:center;">
+                    <div class="metric-label">Target Exam</div>
+                    <div class="metric-value" style="font-size:16px;">{escaped_exam}</div>
+                </div>""", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div class="wellness-card wellness-card-sage" style="padding:14px; text-align:center; background:{stress_bg};">
+                    <div class="metric-label">Avg Stress ({timeframe})</div>
+                    <div class="metric-value" style="color:{stress_text_color};">{avg_stress:.1f} / 10</div>
+                </div>""", unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                <div class="wellness-card wellness-card-blue" style="padding:14px; text-align:center;">
+                    <div class="metric-label">Dominant Mood</div>
+                    <div class="metric-value" style="font-size:15px;">{escaped_mood}</div>
+                </div>""", unsafe_allow_html=True)
+            with col4:
+                st.markdown(f"""
+                <div class="wellness-card" style="padding:14px; text-align:center; border-left:6px solid #6B46C1;">
+                    <div class="metric-label">Top Trigger</div>
+                    <div class="metric-value" style="font-size:14px;" title="{escaped_trigger}">{escaped_trigger}</div>
+                </div>""", unsafe_allow_html=True)
+            with col5:
+                st.markdown(f"""
+                <div class="wellness-card" style="padding:14px; text-align:center; border-left:6px solid #319795;">
+                    <div class="metric-label">Entries Logged</div>
+                    <div class="metric-value">{total_entries}</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── TRIGGER-SPECIFIC INSTANT TIP ─────────────────────
+            TRIGGER_TIPS = {
+                "Mock Test Performance": "💡 After each mock, spend 10 min reviewing *only* wrong answers — not full re-reads. Pattern spotting is more efficient than re-solving.",
+                "Mock Test": "💡 After each mock, spend 10 min reviewing *only* wrong answers — not full re-reads. Pattern spotting is more efficient than re-solving.",
+                "Time Management": "💡 Try the 2-minute rule: if a question takes >2 mins, mark it, move on, return at the end. You preserve flow and collect easy marks first.",
+                "Syllabus Coverage": "💡 Break the syllabus into 4-day sprint blocks. Completing a sprint gives a dopamine hit that fights overwhelm better than looking at the full list.",
+                "Lack of Sleep / Fatigue": "💡 A 20-min nap between 2–4 PM boosts alertness for 3 hours. Protect your sleep window — it's not optional, it's a performance tool.",
+                "Peer Pressure / Comparison": "💡 Your journey is a different route, not a slower one. Block peer score updates and focus on your own weekly delta — did you improve from last week?",
+                "Family Expectations": "💡 Schedule one 15-min weekly check-in with family to update them on progress. Structure lowers surprise anxiety from both sides.",
+                "Fear of Failure": "💡 Reframe: 'What's the worst realistic outcome, and can I survive it?' Usually yes. Fear loses power when you've rehearsed surviving it.",
+                "Procrastination Guilt": "💡 Start with 5-min study blocks. Often you'll continue past 5 mins. The activation energy is the barrier, not the work itself.",
+                "Unclear Career Goals": "💡 Pause one evening this week. Write down 3 futures you'd be okay with — gives the brain multiple safe paths to work toward.",
+            }
+            tip_text = None
+            for key in TRIGGER_TIPS:
+                if key.lower() in top_trigger.lower():
+                    tip_text = TRIGGER_TIPS[key]
+                    break
+            if not tip_text and top_trigger != "None detected yet":
+                tip_text = f"💡 You identified **{html.escape(top_trigger)}** as your main stressor. Log more entries so Aura can build personalized tips for you."
+
+            if tip_text:
+                st.markdown(
+                    f"""
+                    <div class="wellness-card wellness-card-blue" style="background:#EFF6FF; padding:14px 18px; margin-bottom:20px;">
+                        <strong style="color:#1E40AF; font-size:13px; text-transform:uppercase; letter-spacing:.05em;">
+                            🎯 Aura's Tip — Based on your top trigger: {html.escape(top_trigger)}
+                        </strong>
+                        <p style="margin:6px 0 0 0; color:#1E3A5F; font-size:14px;">{tip_text}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            # ── CHARTS ────────────────────────────────────────────
+            df_plot = df.sort_values("date_parsed")
+
+            left_col, right_col = st.columns([3, 2])
+
+            with left_col:
+                st.markdown("<h3 style='margin-top:0;'>📈 Stress Level Over Time</h3>", unsafe_allow_html=True)
+
+                base = alt.Chart(df_plot).encode(
+                    x=alt.X("date_parsed:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=-30))
+                )
+                stress_line = base.mark_line(
+                    point=True, color="#6B46C1", strokeWidth=2.5
+                ).encode(
+                    y=alt.Y("stress_level:Q", title="Stress Level (1–10)", scale=alt.Scale(domain=[0, 10])),
+                    tooltip=[
+                        alt.Tooltip("date_parsed:T", title="Date", format="%b %d"),
+                        alt.Tooltip("mood:N", title="Mood"),
+                        alt.Tooltip("stress_level:Q", title="Stress")
+                    ]
+                )
+                # Rolling 3-day average line if enough entries
+                if len(df_plot) >= 3:
+                    rolling_df = df_plot.copy()
+                    rolling_df["rolling_avg"] = rolling_df["stress_level"].rolling(3, min_periods=1).mean()
+                    avg_line = alt.Chart(rolling_df).mark_line(
+                        strokeDash=[4, 2], color="#D6BCFA", strokeWidth=2
+                    ).encode(
+                        x=alt.X("date_parsed:T"),
+                        y=alt.Y("rolling_avg:Q")
+                    )
+                    chart = (stress_line + avg_line).properties(height=280).interactive()
+                else:
+                    chart = stress_line.properties(height=280).interactive()
+
+                st.altair_chart(chart, use_container_width=True)
+                if len(df_plot) >= 3:
+                    st.caption("Dashed line = 3-entry rolling average")
+
+            with right_col:
+                st.markdown("<h3 style='margin-top:0;'>🔥 Top Stress Triggers</h3>", unsafe_allow_html=True)
+                if all_triggers:
+                    trigger_counts = pd.Series(all_triggers).value_counts().head(7).reset_index()
+                    trigger_counts.columns = ["Trigger", "Count"]
+                    trigger_chart = alt.Chart(trigger_counts).mark_bar(
+                        cornerRadiusTopRight=4, cornerRadiusBottomRight=4
+                    ).encode(
+                        x=alt.X("Count:Q", title="Occurrences", axis=alt.Axis(tickMinStep=1)),
+                        y=alt.Y("Trigger:N", sort="-x", title=""),
+                        color=alt.Color(
+                            "Count:Q",
+                            legend=None,
+                            scale=alt.Scale(scheme="purples")
+                        ),
+                        tooltip=["Trigger:N", "Count:Q"]
+                    ).properties(height=280)
+                    st.altair_chart(trigger_chart, use_container_width=True)
+                else:
+                    st.info("No triggers detected yet. Log more entries.")
+
+            # ── MOOD DISTRIBUTION ─────────────────────────────────
+            st.markdown("<h3 style='margin-top:0;'>😊 Mood Distribution</h3>", unsafe_allow_html=True)
+            mood_counts = df["mood"].value_counts().reset_index()
+            mood_counts.columns = ["Mood", "Count"]
+            mood_chart = alt.Chart(mood_counts).mark_arc(innerRadius=60, outerRadius=110).encode(
+                theta=alt.Theta("Count:Q"),
+                color=alt.Color("Mood:N", scale=alt.Scale(scheme="purplebluegreen")),
+                tooltip=["Mood:N", "Count:Q"]
+            ).properties(height=260)
+            mood_text = alt.Chart(mood_counts).mark_text(radius=140, fontSize=11).encode(
+                theta=alt.Theta("Count:Q", stack=True),
+                text=alt.Text("Mood:N"),
+                color=alt.value("#4A5568")
+            )
+            mood_col, emo_col = st.columns([1, 1])
+            with mood_col:
+                st.altair_chart(mood_chart, use_container_width=True)
+            with emo_col:
+                st.markdown("<h3 style='margin-top:0;'>🧠 Top Emotions Logged</h3>", unsafe_allow_html=True)
+                if all_emotions:
+                    emo_counts = pd.Series(all_emotions).value_counts().head(8).reset_index()
+                    emo_counts.columns = ["Emotion", "Count"]
+                    emo_chart = alt.Chart(emo_counts).mark_bar(
+                        cornerRadiusTopLeft=4, cornerRadiusTopRight=4
+                    ).encode(
+                        x=alt.X("Emotion:N", sort="-y", title="", axis=alt.Axis(labelAngle=-30)),
+                        y=alt.Y("Count:Q", title="Occurrences", axis=alt.Axis(tickMinStep=1)),
+                        color=alt.Color("Count:Q", legend=None, scale=alt.Scale(scheme="blues")),
+                        tooltip=["Emotion:N", "Count:Q"]
+                    ).properties(height=260)
+                    st.altair_chart(emo_chart, use_container_width=True)
+
+            # ── RECENT ENTRIES TIMELINE ───────────────────────────
+            st.markdown("---")
+            st.markdown("<h3>📋 Recent Entries at a Glance</h3>", unsafe_allow_html=True)
+            recent_5 = df.sort_values("date_parsed", ascending=False).head(5)
+            for _, row in recent_5.iterrows():
+                stress = row["stress_level"]
+                s_color = "#9B1C1C" if stress >= 8 else "#92400E" if stress >= 5 else "#166534"
+                s_bg = "#FFF0F0" if stress >= 8 else "#FFFBEB" if stress >= 5 else "#F0FDF4"
+                mood_str = html.escape(str(row["mood"]))
+                date_str = html.escape(str(row["date"]))
+                snippet = html.escape(str(row["journal_text"])[:120]) + "..."
+                triggers_str = html.escape(", ".join(row["triggers"]) if isinstance(row["triggers"], list) else "")
+                st.markdown(
+                    f"""
+                    <div style="display:flex; align-items:flex-start; gap:14px; padding:12px 0;
+                                border-bottom:1px solid #E2E8F0; margin-bottom:4px;">
+                        <div style="min-width:80px; text-align:center; padding:8px 10px;
+                                    background:{s_bg}; border-radius:10px;">
+                            <div style="font-size:20px; font-weight:800; color:{s_color};">{stress}</div>
+                            <div style="font-size:10px; color:{s_color}; text-transform:uppercase;">stress</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; color:#2D3748; font-size:13px;">{date_str} &nbsp;·&nbsp; {mood_str}</div>
+                            <div style="color:#718096; font-size:13px; margin-top:3px; font-style:italic;">"{snippet}"</div>
+                            <div style="margin-top:5px; font-size:12px; color:#6B46C1;">🔍 {triggers_str if triggers_str else 'No triggers detected'}</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            # ── AI WELLNESS INSIGHTS REPORT ───────────────────────
+            st.markdown("---")
+            st.markdown("### 📝 AI-Generated Wellness & Emotional Analysis")
+            st.markdown("Get a long-term analysis of your mental logs, detecting subconscious patterns and recommending specific study-life changes.")
+
+            if not st.session_state.api_key:
+                st.warning("Please provide your Gemini API key in the sidebar to generate your wellness report.")
+            else:
+                if st.session_state.refresh_report or not st.session_state.report_cache:
+                    with st.spinner("Aura is analyzing your journal history and synthesizing insights..."):
+                        try:
+                            history = sorted(all_entries, key=lambda x: x["date"])
+                            report = client.generate_wellness_report(history, profile_data)
+                            st.session_state.report_cache = report
+                            st.session_state.refresh_report = False
+                        except Exception as e:
+                            st.error(f"Error generating report: {e}")
+
+                if st.session_state.report_cache:
+                    with st.container(border=True):
+                        st.markdown(st.session_state.report_cache)
+
+                    if st.button("🔄 Regenerate Report"):
+                        st.session_state.refresh_report = True
+                        st.rerun()
 
 elif st.session_state.page == "journal":
     st.markdown("<h1 style='margin-bottom: 5px;'>📝 Daily Journal & Mood Logger</h1>", unsafe_allow_html=True)
