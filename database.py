@@ -1,8 +1,10 @@
 import sqlite3
 import json
+import os
 from datetime import datetime
 
-DB_NAME = "wellness_tracker.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = os.path.join(BASE_DIR, "wellness_tracker.db")
 
 def get_connection():
     """Establish connection to SQLite database."""

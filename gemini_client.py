@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-2.5-pro"
 
 class GeminiClient:
     def __init__(self, api_key=None):
@@ -19,7 +19,7 @@ class GeminiClient:
         if not self.api_key:
             raise ValueError("Gemini API key is not configured. Please provide it in the sidebar or environment.")
 
-        url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/{model}:generateContent"
         
         # Build contents structure
         payload = {
@@ -42,7 +42,10 @@ class GeminiClient:
                 "responseMimeType": "application/json"
             }
 
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
         
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=20)

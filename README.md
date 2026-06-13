@@ -49,9 +49,15 @@ The app leverages Google Gemini to analyze logs and chat. You can provide your k
 ### 3. Run the Application
 Start the Streamlit application:
 ```bash
-streamlit run app.py
+python -m streamlit run app.py
 ```
 This will spin up a local server and automatically open the app in your default browser (typically at `http://localhost:8501`).
+
+### 4. Running the Test Suite
+You can execute the automated test suite locally to verify the database schema and API client logic:
+```bash
+python -m unittest test_wellness.py
+```
 
 ---
 
@@ -61,3 +67,4 @@ This will spin up a local server and automatically open the app in your default 
 - [database.py](file:///c:/Users/akhun/OneDrive/Desktop/mental-wellness-01/database.py): Handles SQLite database connection pool, schema initialization, and CRUD operations.
 - [gemini_client.py](file:///c:/Users/akhun/OneDrive/Desktop/mental-wellness-01/gemini_client.py): Direct API controller making secure requests to Gemini endpoints.
 - [styles.py](file:///c:/Users/akhun/OneDrive/Desktop/mental-wellness-01/styles.py): Hosts custom styling classes and the embedded HTML5 breathing component.
+- [test_wellness.py](file:///c:/Users/akhun/OneDrive/Desktop/mental-wellness-01/test_wellness.py): Comprehensive unit testing suite for database CRUD and API response parsing.

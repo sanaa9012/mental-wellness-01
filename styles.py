@@ -234,15 +234,15 @@ body {
 </head>
 <body>
 
-<div class="breathing-card">
+<div class="breathing-card" role="region" aria-label="Guided Box Breathing Exercise">
     <div class="bubble-container">
-        <div id="breathing-circle" class="breathing-circle"></div>
+        <div id="breathing-circle" class="breathing-circle" role="img" aria-label="Visual breathing guide bubble"></div>
         <div class="text-container">
-            <div id="breathing-text" class="breathing-text">Inhale...</div>
-            <div id="breathing-timer" class="breathing-timer">4</div>
+            <div id="breathing-text" class="breathing-text" aria-live="polite">Inhale...</div>
+            <div id="breathing-timer" class="breathing-timer" aria-hidden="true">4</div>
         </div>
     </div>
-    <div id="breathing-hint" class="instruction-hint">Box Breathing: Calms the nervous system by aligning cycles.</div>
+    <div id="breathing-hint" class="instruction-hint" aria-live="polite">Box Breathing: Calms the nervous system by aligning cycles.</div>
 </div>
 
 <script>

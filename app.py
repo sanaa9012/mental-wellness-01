@@ -4,6 +4,7 @@ import sqlite3
 import pandas as pd
 import altair as alt
 from datetime import datetime, date
+import html
 
 # Import custom modules
 import database
@@ -60,7 +61,7 @@ if not st.session_state.api_key:
 client = GeminiClient(api_key=st.session_state.api_key)
 
 # ----------------- SIDEBAR -----------------
-st.sidebar.markdown("<h1 style='text-align: center; color: white;'>🧠 Aura</h1>", unsafe_allow_html=True)
+st.sidebar.markdown("<h2 style='text-align: center; color: white; margin-top: 0;'>🧠 Aura</h2>", unsafe_allow_html=True)
 st.sidebar.markdown("<p style='text-align: center; color: #A0AEC0; font-size: 14px;'>Exam Wellness Companion</p>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
@@ -151,12 +152,13 @@ if st.session_state.page == "dashboard":
     
     if not entries:
         # Beautiful empty state
+        escaped_exam = html.escape(profile_data['target_exam'])
         st.markdown(
             f"""
             <div class="wellness-card wellness-card-accent" style="text-align: center; padding: 40px;">
                 <h2 style="color: #6B46C1; margin-top: 0;">Welcome to Aura, your wellness companion! 🌟</h2>
                 <p style="font-size: 16px; color: #4D5568; max-width: 600px; margin: 0 auto 24px auto;">
-                    Preparing for <b>{profile_data['target_exam']}</b> requires tremendous dedication. However, your mental health is 
+                    Preparing for <b>{escaped_exam}</b> requires tremendous dedication. However, your mental health is 
                     just as important as your exam score. Aura is designed to analyze your daily journal logs to reveal hidden 
                     stress triggers, provide direct coping mechanisms, and support you along the way.
                 </p>
@@ -185,12 +187,15 @@ if st.session_state.page == "dashboard":
             top_trigger = pd.Series(all_triggers).value_counts().index[0]
             
         col1, col2, col3, col4 = st.columns(4)
+        escaped_exam = html.escape(profile_data['target_exam'])
+        escaped_mood = html.escape(most_common_mood)
+        escaped_trigger = html.escape(top_trigger)
         with col1:
             st.markdown(
                 f"""
                 <div class="wellness-card wellness-card-accent" style="padding: 16px; text-align: center;">
                     <div class="metric-label">Target Exam</div>
-                    <div class="metric-value" style="font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{profile_data['target_exam']}</div>
+                    <div class="metric-value" style="font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{escaped_exam}</div>
                 </div>
                 """, unsafe_allow_html=True
             )
@@ -208,7 +213,7 @@ if st.session_state.page == "dashboard":
                 f"""
                 <div class="wellness-card wellness-card-blue" style="padding: 16px; text-align: center;">
                     <div class="metric-label">Dominant Mood</div>
-                    <div class="metric-value">{most_common_mood}</div>
+                    <div class="metric-value">{escaped_mood}</div>
                 </div>
                 """, unsafe_allow_html=True
             )
@@ -217,7 +222,7 @@ if st.session_state.page == "dashboard":
                 f"""
                 <div class="wellness-card" style="padding: 16px; text-align: center; border-left: 6px solid #4A5568;">
                     <div class="metric-label">Top Stress Trigger</div>
-                    <div class="metric-value" style="font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{top_trigger}">{top_trigger}</div>
+                    <div class="metric-value" style="font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{escaped_trigger}">{escaped_trigger}</div>
                 </div>
                 """, unsafe_allow_html=True
             )
@@ -291,14 +296,8 @@ if st.session_state.page == "dashboard":
                         st.error(f"Error generating report: {e}")
             
             if st.session_state.report_cache:
-                st.markdown(
-                    f"""
-                    <div class="wellness-card" style="background: white; border: 1px solid #D6BCFA; border-left: 6px solid #805AD5;">
-                        {st.session_state.report_cache}
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                with st.container(border=True):
+                    st.markdown(st.session_state.report_cache)
                 
                 if st.button("🔄 Regenerate Report"):
                     st.session_state.refresh_report = True
@@ -317,7 +316,6 @@ elif st.session_state.page == "journal":
         # Form inputs
         entry_date = st.date_input("Date:", date.today())
         
-        st.markdown("<label style='font-size:14px; font-weight:600; color:#4A5568;'>How is your overall mood today?</label>", unsafe_allow_html=True)
         mood_opts = {
             "🚀 Motivated / Confident": "🚀 Motivated",
             "🙂 Calm / Peaceful": "🙂 Calm",
@@ -327,9 +325,8 @@ elif st.session_state.page == "journal":
             "😭 Severe Stress / Panic": "😭 Stressed"
         }
         selected_mood_label = st.radio(
-            "Mood Choice:",
-            list(mood_opts.keys()),
-            label_visibility="collapsed"
+            "How is your overall mood today?",
+            list(mood_opts.keys())
         )
         selected_mood = mood_opts[selected_mood_label]
         
@@ -389,18 +386,19 @@ elif st.session_state.page == "journal":
             st.markdown(f"**Calculated Stress Load:** <span style='font-size: 20px; font-weight:800; color:{stress_color};'>{ans['stress_level']} / 10</span>", unsafe_allow_html=True)
             
             # Emotions tags
-            emotions_html = "".join([f"<span class='tag tag-emotion'>{e}</span>" for e in ans["emotions"]])
+            emotions_html = "".join([f"<span class='tag tag-emotion'>{html.escape(e)}</span>" for e in ans["emotions"]])
             st.markdown(f"**Detected Emotions:** {emotions_html}", unsafe_allow_html=True)
             
             # Triggers tags
-            triggers_html = "".join([f"<span class='tag tag-trigger'>{t}</span>" for t in ans["triggers"]])
+            triggers_html = "".join([f"<span class='tag tag-trigger'>{html.escape(t)}</span>" for t in ans["triggers"]])
             st.markdown(f"**Stress Triggers:** {triggers_html}", unsafe_allow_html=True)
             
             # Empathy block
+            escaped_empathy = html.escape(ans['empathy_note'])
             st.markdown(
                 f"""
                 <div class="wellness-card wellness-card-accent" style="margin-top: 15px;">
-                    <p style="font-style: italic; color: #4A5568; margin: 0;">"{ans['empathy_note']}"</p>
+                    <p style="font-style: italic; color: #4A5568; margin: 0;">"{escaped_empathy}"</p>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -412,11 +410,12 @@ elif st.session_state.page == "journal":
                 st.markdown(f"- {tip}")
                 
             # Mindfulness block
+            escaped_mindfulness = html.escape(ans['mindfulness_prompt'])
             st.markdown(
                 f"""
                 <div class="wellness-card wellness-card-sage" style="margin-top: 15px; background-color: #F0FDF4;">
                     <h5 style="margin-top: 0; color: #234E52;">🧘 Suggested Mindfulness Exercise</h5>
-                    <p style="color: #2C5282; margin: 0; font-size: 14px;">{ans['mindfulness_prompt']}</p>
+                    <p style="color: #2C5282; margin: 0; font-size: 14px;">{escaped_mindfulness}</p>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -443,26 +442,29 @@ elif st.session_state.page == "journal":
                 
                 with st.expander(expander_label):
                     st.markdown(f"**Journal Log:**")
-                    st.markdown(f"<p style='color: #4A5568; font-style: italic; padding: 10px; background:#F8FAFC; border-radius:8px;'>{item['journal_text']}</p>", unsafe_allow_html=True)
+                    escaped_journal = html.escape(item['journal_text'])
+                    st.markdown(f"<p style='color: #4A5568; font-style: italic; padding: 10px; background:#F8FAFC; border-radius:8px;'>{escaped_journal}</p>", unsafe_allow_html=True)
                     
                     # Tag items
-                    e_tags = "".join([f"<span class='tag tag-emotion'>{e}</span>" for e in item["emotions"]])
-                    t_tags = "".join([f"<span class='tag tag-trigger'>{t}</span>" for t in item["triggers"]])
+                    e_tags = "".join([f"<span class='tag tag-emotion'>{html.escape(e)}</span>" for e in item["emotions"]])
+                    t_tags = "".join([f"<span class='tag tag-trigger'>{html.escape(t)}</span>" for t in item["triggers"]])
                     st.markdown(f"**Identified States:** {e_tags}{t_tags}", unsafe_allow_html=True)
                     
                     st.markdown("---")
                     st.markdown(f"**Aura's Analysis:**")
-                    st.markdown(f"<p style='color: #4A5568;'><b>Empathy note:</b> {item['empathy_note']}</p>", unsafe_allow_html=True)
+                    escaped_empathy_note = html.escape(item['empathy_note'])
+                    st.markdown(f"<p style='color: #4A5568;'><b>Empathy note:</b> {escaped_empathy_note}</p>", unsafe_allow_html=True)
                     
                     st.markdown("**Personalized Coping Advice:**")
                     st.markdown(item["coping_strategy"])
                     
                     if item["mindfulness_prompt"]:
+                        escaped_mindfulness_prompt = html.escape(item['mindfulness_prompt'])
                         st.markdown(
                             f"""
                             <div class="wellness-card wellness-card-sage" style="padding: 12px; margin-top: 10px; background-color: #F0FDF4; border-radius: 8px;">
                                 <span style="font-weight:600; font-size: 13px; color:#234E52;">🧘 Quick Mindfulness Step:</span>
-                                <p style="color:#2C5282; margin: 4px 0 0 0; font-size:13px;">{item['mindfulness_prompt']}</p>
+                                <p style="color:#2C5282; margin: 4px 0 0 0; font-size:13px;">{escaped_mindfulness_prompt}</p>
                             </div>
                             """,
                             unsafe_allow_html=True
