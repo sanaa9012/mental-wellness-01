@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-DEFAULT_MODEL = "gemini-1.5-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 class GeminiClient:
     def __init__(self, api_key=None):
